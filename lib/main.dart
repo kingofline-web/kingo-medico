@@ -1,7 +1,9 @@
+// KINGO MEDICO RC1.1 TESTER + LIMITATORE
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'services/app_storage_service.dart';
@@ -48,22 +50,88 @@ class HomePage extends StatelessWidget {
     Navigator.push(context, MaterialPageRoute(builder: (_) => page));
   }
 
+  Future<void> _activateTester(BuildContext context) async {
+    final controller = TextEditingController();
+    final storage = AppStorageService();
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Modalità TESTER KOL'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Funzione riservata ai test interni. Inserisci il codice tester.',
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              obscureText: true,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Codice tester',
+                border: OutlineInputBorder(),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('ANNULLA'),
+          ),
+          FilledButton(
+            onPressed: () {
+              final ok = controller.text.trim() == 'KOL-TEST-2026';
+              Navigator.pop(dialogContext, ok);
+            },
+            child: const Text('ATTIVA'),
+          ),
+        ],
+      ),
+    );
+
+    controller.dispose();
+
+    if (confirmed != true || !context.mounted) {
+      if (confirmed == false && context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Codice tester non valido.')),
+        );
+      }
+      return;
+    }
+
+    await storage.setSelectedPlan('TESTER');
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt('kingo_medico_free_answers_used', 0);
+
+    if (!context.mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Modalità TESTER KOL attiva: chat illimitata.'),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'KINGO Medico',
-              style: TextStyle(fontWeight: FontWeight.w900),
-            ),
-            Text(
-              'Il tuo assistente sanitario AI in italiano',
-              style: TextStyle(fontSize: 11.5, color: Color(0xFF607985)),
-            ),
-          ],
+        title: GestureDetector(
+          onLongPress: () => _activateTester(context),
+          child: const Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('KINGO Medico', style: TextStyle(fontWeight: FontWeight.w900)),
+              Text(
+                'Il tuo assistente sanitario AI in italiano',
+                style: TextStyle(fontSize: 11.5, color: Color(0xFF607985)),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton.icon(
@@ -87,11 +155,7 @@ class HomePage extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
-                  Icons.health_and_safety_rounded,
-                  color: Colors.white,
-                  size: 44,
-                ),
+                const Icon(Icons.health_and_safety_rounded, color: Colors.white, size: 44),
                 const SizedBox(height: 14),
                 const Text(
                   'La tua salute, più semplice da capire.',
@@ -215,8 +279,13 @@ class MedicalChatPage extends StatefulWidget {
 }
 
 class _MedicalChatPageState extends State<MedicalChatPage> {
+  static const int _freeLimit = 2;
+  static const String _freeCountKey = 'kingo_medico_free_answers_used';
+
   final _service = MedicalAiService();
+  final _storage = AppStorageService();
   final _controller = TextEditingController();
+
   final List<_ChatMessage> _messages = const [
     _ChatMessage(
       user: false,
@@ -224,11 +293,101 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
           'Ciao, sono KINGO Medico. Posso aiutarti a capire meglio sintomi, esami e referti. Non sostituisco il medico.',
     ),
   ].toList();
+
   bool _sending = false;
+  int _freeUsed = 0;
+  String _plan = 'FREE';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPlanAndLimit();
+  }
+
+  Future<void> _loadPlanAndLimit() async {
+    final prefs = await SharedPreferences.getInstance();
+    final plan = await _storage.getSelectedPlan();
+    if (!mounted) return;
+    setState(() {
+      _plan = plan;
+      _freeUsed = prefs.getInt(_freeCountKey) ?? 0;
+    });
+  }
+
+  int get _remaining => (_freeLimit - _freeUsed).clamp(0, _freeLimit);
+
+  String _cleanAiText(String text) {
+    return text
+        .replaceAll('**', '')
+        .replaceAll('__', '')
+        .replaceAll(RegExp(r'(?m)^\s*[-•]\s+'), '• ');
+  }
+
+  Future<void> _showUpgrade() async {
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 8, 22, 22),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Icon(
+                Icons.workspace_premium_rounded,
+                size: 42,
+                color: KingoMedicoApp.primary,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Hai utilizzato le 2 risposte gratuite',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Per continuare a parlare con KINGO Medico scegli il piano PLUS o PRO.',
+                style: TextStyle(fontSize: 16, height: 1.4),
+              ),
+              const SizedBox(height: 18),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton(
+                  onPressed: () {
+                    Navigator.pop(sheetContext);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const PlansPage()),
+                    );
+                  },
+                  child: const Text('VEDI PLUS E PRO'),
+                ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(sheetContext),
+                  child: const Text('NON ORA'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Future<void> _send() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _sending) return;
+
+    if (_plan == 'FREE' && _freeUsed >= _freeLimit) {
+      await _showUpgrade();
+      return;
+    }
 
     final history = _messages
         .map((m) => {
@@ -245,11 +404,32 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
 
     try {
       final reply = await _service.sendMessage(message: text, history: history);
+
+      if (_plan == 'FREE') {
+        final prefs = await SharedPreferences.getInstance();
+        final newCount = (_freeUsed + 1).clamp(0, _freeLimit);
+        await prefs.setInt(_freeCountKey, newCount);
+        _freeUsed = newCount;
+      }
+
       if (!mounted) return;
-      setState(() => _messages.add(_ChatMessage(user: false, text: reply)));
+      setState(() {
+        _messages.add(
+          _ChatMessage(user: false, text: _cleanAiText(reply)),
+        );
+      });
+
+      if (_plan == 'FREE' && _freeUsed >= _freeLimit) {
+        await Future<void>.delayed(const Duration(milliseconds: 500));
+        if (mounted) await _showUpgrade();
+      }
     } on MedicalAiException catch (e) {
       if (!mounted) return;
-      setState(() => _messages.add(_ChatMessage(user: false, text: e.message)));
+      setState(() {
+        _messages.add(
+          _ChatMessage(user: false, text: _cleanAiText(e.message)),
+        );
+      });
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -263,10 +443,43 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
 
   @override
   Widget build(BuildContext context) {
+    final free = _plan == 'FREE';
+    final tester = _plan == 'TESTER';
+
     return Scaffold(
       appBar: AppBar(title: const Text('Parla con KINGO')),
       body: Column(
         children: [
+          if (tester)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: const Color(0xFFE8F7EE),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: const Text(
+                'TESTER KOL • risposte illimitate',
+                style: TextStyle(fontWeight: FontWeight.w900),
+              ),
+            ),
+          if (free)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              decoration: BoxDecoration(
+                color: KingoMedicoApp.soft,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                _remaining > 0
+                    ? 'Piano FREE • $_remaining ${_remaining == 1 ? 'risposta rimasta' : 'risposte rimaste'}'
+                    : 'Piano FREE • limite gratuito raggiunto',
+                style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.all(16),
@@ -274,8 +487,7 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
               itemBuilder: (_, i) {
                 final m = _messages[i];
                 return Align(
-                  alignment:
-                      m.user ? Alignment.centerRight : Alignment.centerLeft,
+                  alignment: m.user ? Alignment.centerRight : Alignment.centerLeft,
                   child: Container(
                     constraints: const BoxConstraints(maxWidth: 330),
                     margin: const EdgeInsets.only(bottom: 10),
@@ -288,6 +500,7 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
                       m.text,
                       style: TextStyle(
                         color: m.user ? Colors.white : KingoMedicoApp.text,
+                        height: 1.35,
                       ),
                     ),
                   ),
@@ -305,18 +518,29 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
                   Expanded(
                     child: TextField(
                       controller: _controller,
+                      enabled: !(free && _freeUsed >= _freeLimit),
                       minLines: 1,
                       maxLines: 5,
-                      decoration: const InputDecoration(
-                        hintText: 'Scrivi cosa vuoi capire...',
-                        border: OutlineInputBorder(),
+                      decoration: InputDecoration(
+                        hintText: free && _freeUsed >= _freeLimit
+                            ? 'Scegli PLUS o PRO per continuare'
+                            : 'Scrivi cosa vuoi capire...',
+                        border: const OutlineInputBorder(),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   IconButton.filled(
-                    onPressed: _sending ? null : _send,
-                    icon: const Icon(Icons.send),
+                    onPressed: _sending
+                        ? null
+                        : (free && _freeUsed >= _freeLimit)
+                            ? _showUpgrade
+                            : _send,
+                    icon: Icon(
+                      free && _freeUsed >= _freeLimit
+                          ? Icons.workspace_premium
+                          : Icons.send,
+                    ),
                   ),
                 ],
               ),
@@ -422,16 +646,13 @@ class _DocumentsPageState extends State<DocumentsPage> {
                 subtitle: const Text('Pronto per essere salvato'),
               ),
             ),
-            Row(
-              children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    onPressed: _savePending,
-                    icon: const Icon(Icons.save_outlined),
-                    label: const Text('Salva nel mio archivio'),
-                  ),
-                ),
-              ],
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _savePending,
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('Salva nel mio archivio'),
+              ),
             ),
           ],
           const SizedBox(height: 20),
@@ -462,11 +683,7 @@ class _DocumentsPageState extends State<DocumentsPage> {
             }),
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: _pending == null
-                ? null
-                : () => _snack(
-                      'Il collegamento diretto del documento a KINGO verrà attivato con il backend documentale.',
-                    ),
+            onPressed: _pending == null ? null : () => _snack('Documento pronto.'),
             icon: const Icon(Icons.auto_awesome),
             label: const Text('Invia a KINGO per spiegazione'),
           ),
@@ -503,23 +720,25 @@ class _AgendaPageState extends State<AgendaPage> {
       context,
       MaterialPageRoute(builder: (_) => const AppointmentEditorPage()),
     );
-
     if (result == null) return;
 
     final id = DateTime.now().millisecondsSinceEpoch.remainder(2000000000);
-    final item = {
+    _appointments.add({
       'id': id,
       'title': result.title,
       'date': result.dateTime.toIso8601String(),
-    };
-    _appointments.add(item);
+    });
     await _storage.saveAppointments(_appointments);
     await NotificationService.instance.scheduleAppointmentReminder(
       id: id,
       title: result.title,
       appointment: result.dateTime,
     );
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Appuntamento salvato.')),
+    );
   }
 
   Future<void> _delete(int index) async {
@@ -595,7 +814,12 @@ class _AppointmentEditorPageState extends State<AppointmentEditorPage> {
 
   void _save() {
     final title = _title.text.trim();
-    if (title.isEmpty) return;
+    if (title.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Inserisci il tipo di visita o lo specialista.')),
+      );
+      return;
+    }
     Navigator.pop(
       context,
       _AppointmentDraft(
@@ -644,8 +868,7 @@ class _AppointmentEditorPageState extends State<AppointmentEditorPage> {
             leading: const Icon(Icons.schedule),
             title: Text(_time.format(context)),
             onTap: () async {
-              final picked =
-                  await showTimePicker(context: context, initialTime: _time);
+              final picked = await showTimePicker(context: context, initialTime: _time);
               if (picked != null) setState(() => _time = picked);
             },
           ),
@@ -694,7 +917,6 @@ class _MedicinesPageState extends State<MedicinesPage> {
       context,
       MaterialPageRoute(builder: (_) => const MedicineEditorPage()),
     );
-
     if (result == null) return;
 
     final id = DateTime.now().millisecondsSinceEpoch.remainder(2000000000);
@@ -711,6 +933,45 @@ class _MedicinesPageState extends State<MedicinesPage> {
       hour: result.hour,
       minute: result.minute,
     );
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _edit(int index) async {
+    final m = _medicines[index];
+    final id = (m['id'] as num?)?.toInt();
+    final initial = _MedicineDraft(
+      m['name']?.toString() ?? '',
+      (m['hour'] as num?)?.toInt() ?? 8,
+      (m['minute'] as num?)?.toInt() ?? 0,
+    );
+
+    final result = await Navigator.push<_MedicineDraft>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => MedicineEditorPage(initial: initial),
+      ),
+    );
+    if (result == null) return;
+
+    if (id != null) await NotificationService.instance.cancel(id);
+
+    _medicines[index] = {
+      'id': id ?? DateTime.now().millisecondsSinceEpoch.remainder(2000000000),
+      'name': result.name,
+      'hour': result.hour,
+      'minute': result.minute,
+    };
+
+    await _storage.saveMedicines(_medicines);
+
+    final newId = (_medicines[index]['id'] as num).toInt();
+    await NotificationService.instance.scheduleDailyMedicine(
+      id: newId,
+      medicine: result.name,
+      hour: result.hour,
+      minute: result.minute,
+    );
+
     if (mounted) setState(() {});
   }
 
@@ -732,9 +993,7 @@ class _MedicinesPageState extends State<MedicinesPage> {
         label: const Text('Aggiungi'),
       ),
       body: _medicines.isEmpty
-          ? const Center(
-              child: Text('Nessun promemoria farmaco impostato.'),
-            )
+          ? const Center(child: Text('Nessun promemoria farmaco impostato.'))
           : ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: _medicines.length,
@@ -744,6 +1003,7 @@ class _MedicinesPageState extends State<MedicinesPage> {
                 final minute = (m['minute'] as num?)?.toInt() ?? 0;
                 return Card(
                   child: ListTile(
+                    onTap: () => _edit(i),
                     leading: const Icon(
                       Icons.medication,
                       color: KingoMedicoApp.primary,
@@ -753,9 +1013,20 @@ class _MedicinesPageState extends State<MedicinesPage> {
                       'Ogni giorno alle ${hour.toString().padLeft(2, '0')}:'
                       '${minute.toString().padLeft(2, '0')}',
                     ),
-                    trailing: IconButton(
-                      onPressed: () => _delete(i),
-                      icon: const Icon(Icons.delete_outline),
+                    trailing: Wrap(
+                      spacing: 0,
+                      children: [
+                        IconButton(
+                          tooltip: 'Modifica',
+                          onPressed: () => _edit(i),
+                          icon: const Icon(Icons.edit_outlined),
+                        ),
+                        IconButton(
+                          tooltip: 'Elimina',
+                          onPressed: () => _delete(i),
+                          icon: const Icon(Icons.delete_outline),
+                        ),
+                      ],
                     ),
                   ),
                 );
@@ -766,15 +1037,26 @@ class _MedicinesPageState extends State<MedicinesPage> {
 }
 
 class MedicineEditorPage extends StatefulWidget {
-  const MedicineEditorPage({super.key});
+  final _MedicineDraft? initial;
+  const MedicineEditorPage({super.key, this.initial});
 
   @override
   State<MedicineEditorPage> createState() => _MedicineEditorPageState();
 }
 
 class _MedicineEditorPageState extends State<MedicineEditorPage> {
-  final _name = TextEditingController();
-  TimeOfDay _time = const TimeOfDay(hour: 8, minute: 0);
+  late final TextEditingController _name;
+  late TimeOfDay _time;
+
+  @override
+  void initState() {
+    super.initState();
+    _name = TextEditingController(text: widget.initial?.name ?? '');
+    _time = TimeOfDay(
+      hour: widget.initial?.hour ?? 8,
+      minute: widget.initial?.minute ?? 0,
+    );
+  }
 
   @override
   void dispose() {
@@ -784,7 +1066,12 @@ class _MedicineEditorPageState extends State<MedicineEditorPage> {
 
   void _save() {
     final name = _name.text.trim();
-    if (name.isEmpty) return;
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Inserisci il nome del farmaco.')),
+      );
+      return;
+    }
     Navigator.pop(
       context,
       _MedicineDraft(name, _time.hour, _time.minute),
@@ -793,8 +1080,12 @@ class _MedicineEditorPageState extends State<MedicineEditorPage> {
 
   @override
   Widget build(BuildContext context) {
+    final editing = widget.initial != null;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Nuovo promemoria')),
+      appBar: AppBar(
+        title: Text(editing ? 'Modifica promemoria' : 'Nuovo promemoria'),
+      ),
       body: ListView(
         padding: const EdgeInsets.all(18),
         children: [
@@ -810,8 +1101,7 @@ class _MedicineEditorPageState extends State<MedicineEditorPage> {
             leading: const Icon(Icons.schedule),
             title: Text(_time.format(context)),
             onTap: () async {
-              final picked =
-                  await showTimePicker(context: context, initialTime: _time);
+              final picked = await showTimePicker(context: context, initialTime: _time);
               if (picked != null) setState(() => _time = picked);
             },
           ),
@@ -819,7 +1109,9 @@ class _MedicineEditorPageState extends State<MedicineEditorPage> {
           FilledButton.icon(
             onPressed: _save,
             icon: const Icon(Icons.notifications_active),
-            label: const Text('Salva e attiva promemoria'),
+            label: Text(
+              editing ? 'Salva modifiche' : 'Salva e attiva promemoria',
+            ),
           ),
         ],
       ),
@@ -880,7 +1172,7 @@ class UsefulNumbersPage extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           const Text(
-            'I numeri territoriali (continuità assistenziale, centri antiveleni e servizi regionali) verranno inseriti dopo verifica ufficiale per area geografica.',
+            'I numeri territoriali verranno inseriti dopo verifica ufficiale per area geografica.',
             style: TextStyle(fontSize: 12.5, color: Colors.black54),
           ),
         ],
@@ -914,15 +1206,24 @@ class _PlansPageState extends State<PlansPage> {
   Future<void> _choose(String plan) async {
     if (plan == 'FREE') {
       await _storage.setSelectedPlan(plan);
-      setState(() => selected = plan);
+      if (mounted) setState(() => selected = plan);
       return;
     }
+
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Hai scelto $plan. Il collegamento a Google Play Billing verrà attivato nel modulo acquisti.',
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Piano $plan'),
+        content: const Text(
+          'Il piano sarà attivabile tramite Google Play nella versione di pubblicazione.',
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
       ),
     );
   }
@@ -938,12 +1239,12 @@ class _PlansPageState extends State<PlansPage> {
             title: 'FREE',
             price: 'Gratis',
             features: const [
-              '3 risposte iniziali',
+              '2 risposte gratuite',
               '1 esame o referto',
               'Avvisi di sicurezza sempre disponibili',
             ],
             selected: selected == 'FREE',
-            button: 'INIZIA GRATIS',
+            button: 'PIANO ATTUALE',
             onTap: () => _choose('FREE'),
           ),
           _PlanCard(
@@ -1008,14 +1309,10 @@ class _PlanCard extends StatelessWidget {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w900,
-                  ),
+                  style: const TextStyle(fontSize: 24, fontWeight: FontWeight.w900),
                 ),
                 const Spacer(),
-                if (selected)
-                  const Chip(label: Text('ATTIVO')),
+                if (selected) const Chip(label: Text('ATTIVO')),
               ],
             ),
             Text(
@@ -1062,7 +1359,25 @@ class AccountPage extends StatelessWidget {
       length: 2,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('Account KINGO Medico'),
+          title: GestureDetector(
+            onLongPress: () async {
+              final storage = AppStorageService();
+              final current = await storage.getSelectedPlan();
+              if (current == 'TESTER') {
+                await storage.setSelectedPlan('FREE');
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setInt('kingo_medico_free_answers_used', 0);
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Modalità TESTER disattivata. Piano FREE ripristinato.'),
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Account KINGO Medico'),
+          ),
           bottom: const TabBar(
             tabs: [
               Tab(text: 'ACCEDI'),
@@ -1130,18 +1445,13 @@ class _AccountFormState extends State<_AccountForm> {
               SnackBar(
                 content: Text(
                   widget.register
-                      ? 'Modulo registrazione pronto: ora va collegato al backend utenti.'
-                      : 'Modulo accesso pronto: ora va collegato al backend utenti.',
+                      ? 'Registrazione non ancora attiva.'
+                      : 'Accesso non ancora attivo.',
                 ),
               ),
             );
           },
           child: Text(widget.register ? 'ISCRIVITI' : 'ACCEDI'),
-        ),
-        const SizedBox(height: 12),
-        const Text(
-          'Questa schermata è pronta graficamente. Per sicurezza, password e dati sanitari non vengono salvati localmente: l’autenticazione verrà collegata al backend protetto.',
-          style: TextStyle(fontSize: 12.5, color: Colors.black54),
         ),
       ],
     );
