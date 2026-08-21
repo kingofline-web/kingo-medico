@@ -1,0 +1,28 @@
+KINGO MEDICO - STRUTTURA FLUTTER COMPLETA
+
+Questo pacchetto integra il repository con TUTTI i file strutturali Flutter/Android
+che mancavano dopo il Pacchetto Funzionale 1.
+
+CARICA TUTTO IL CONTENUTO DI QUESTA CARTELLA NEL REPOSITORY ESISTENTE.
+
+Contiene:
+- android/settings.gradle.kts
+- android/build.gradle.kts
+- android/gradle.properties
+- android/gradlew
+- android/gradlew.bat
+- android/gradle/wrapper/gradle-wrapper.properties
+- MainActivity.kt
+- manifest debug/profile
+- risorse Android, stili e icone launcher
+- .metadata
+- .gitignore
+- analysis_options.yaml
+- test/widget_test.dart
+
+NOTA TECNICA:
+android/gradlew è predisposto per scaricare automaticamente Gradle 8.12.1
+durante la build Codemagic. Non serve caricare manualmente gradle-wrapper.jar.
+
+Dopo questo upload il repository contiene la struttura necessaria per lanciare
+la build Flutter Android.

@@ -1,0 +1,22 @@
+#!/bin/sh
+set -e
+
+GRADLE_VERSION="8.12.1"
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+CACHE_DIR="${HOME}/.kingo-gradle"
+GRADLE_HOME="${CACHE_DIR}/gradle-${GRADLE_VERSION}"
+ZIP_FILE="${CACHE_DIR}/gradle-${GRADLE_VERSION}-bin.zip"
+
+if [ ! -x "${GRADLE_HOME}/bin/gradle" ]; then
+  mkdir -p "${CACHE_DIR}"
+  if [ ! -f "${ZIP_FILE}" ]; then
+    echo "Downloading Gradle ${GRADLE_VERSION}..."
+    curl -L --fail --retry 3 \
+      "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" \
+      -o "${ZIP_FILE}"
+  fi
+  rm -rf "${GRADLE_HOME}"
+  unzip -q -o "${ZIP_FILE}" -d "${CACHE_DIR}"
+fi
+
+exec "${GRADLE_HOME}/bin/gradle" "$@"
