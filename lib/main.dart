@@ -1,4 +1,4 @@
-// KINGO MEDICO RC1.2 MASTER GRAFICO APPROVATO
+// KINGO MEDICO RC1.2.1 FIX OVERFLOW HOME + NUMERI UTILI
 import 'dart:convert';
 import 'dart:io';
 
@@ -292,7 +292,7 @@ class HomePage extends StatelessWidget {
               physics: const NeverScrollableScrollPhysics(),
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
-              childAspectRatio: 1.08,
+              childAspectRatio: 0.92,
               children: [
                 _ServiceCard(
                   icon: Icons.calendar_month_rounded,
@@ -1784,7 +1784,7 @@ class _UsefulNumbersPageState extends State<UsefulNumbersPage> {
         label: const Text('Aggiungi contatto'),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 170),
         children: [
           const Text(
             'Numeri nazionali',
