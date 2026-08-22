@@ -1,4 +1,4 @@
-// KINGO MEDICO RC1.2.1 FIX OVERFLOW HOME + NUMERI UTILI
+// KINGO MEDICO RC1.2.2 FIX DEFINITIVO OVERFLOW + ICONA K UOMO
 import 'dart:convert';
 import 'dart:io';
 
@@ -292,7 +292,7 @@ class HomePage extends StatelessWidget {
               physics: const NeverScrollableScrollPhysics(),
               crossAxisSpacing: 12,
               mainAxisSpacing: 12,
-              childAspectRatio: 0.92,
+              childAspectRatio: 0.80,
               children: [
                 _ServiceCard(
                   icon: Icons.calendar_month_rounded,
@@ -411,18 +411,24 @@ class _ServiceCard extends StatelessWidget {
               const Spacer(),
               Text(
                 title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: KingoMedicoApp.navy,
                   fontWeight: FontWeight.w900,
                   fontSize: 15,
+                  height: 1.15,
                 ),
               ),
               const SizedBox(height: 3),
               Text(
                 subtitle,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
                 style: const TextStyle(
                   color: Color(0xFF6B7F87),
                   fontSize: 12.5,
+                  height: 1.2,
                 ),
               ),
             ],
@@ -1778,13 +1784,8 @@ class _UsefulNumbersPageState extends State<UsefulNumbersPage> {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Numeri utili')),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _editContact(),
-        icon: const Icon(Icons.person_add_alt_1),
-        label: const Text('Aggiungi contatto'),
-      ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 170),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
         children: [
           const Text(
             'Numeri nazionali',
@@ -1852,7 +1853,16 @@ class _UsefulNumbersPageState extends State<UsefulNumbersPage> {
                 ),
               );
             }),
-          const SizedBox(height: 8),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: FilledButton.icon(
+              onPressed: () => _editContact(),
+              icon: const Icon(Icons.person_add_alt_1),
+              label: const Text('Aggiungi contatto'),
+            ),
+          ),
+          const SizedBox(height: 18),
           const Text(
             'I numeri territoriali verranno inseriti dopo verifica ufficiale per area geografica.',
             style: TextStyle(fontSize: 12.5, color: Colors.black54),
