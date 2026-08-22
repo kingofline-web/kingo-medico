@@ -1,4 +1,4 @@
-// KINGO MEDICO RC1.1C CHAT DIAGNOSTICA + DOCUMENTI + CONTATTI
+// KINGO MEDICO RC1.1D STABILITA CHAT + DOCUMENTI
 import 'dart:convert';
 import 'dart:io';
 
@@ -258,6 +258,7 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
   final _service = MedicalAiService();
   final _storage = AppStorageService();
   final _controller = TextEditingController();
+  final _scrollController = ScrollController();
 
   final List<_ChatMessage> _messages = const [
     _ChatMessage(
@@ -295,6 +296,17 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
         .replaceAll('**', '')
         .replaceAll('__', '')
         .replaceAll(RegExp(r'(?m)^\s*[-•]\s+'), '• ');
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.animateTo(
+        _scrollController.position.maxScrollExtent,
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeOut,
+      );
+    });
   }
 
   Future<void> _showUpgrade() async {
@@ -376,6 +388,16 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
       _sending = true;
       _statusMessage = 'KINGO sta rispondendo…';
     });
+    _scrollToBottom();
+
+    Future<void>.delayed(const Duration(seconds: 15), () {
+      if (mounted && _sending) {
+        setState(() {
+          _statusMessage = 'KINGO sta elaborando la risposta, ancora qualche secondo…';
+        });
+        _scrollToBottom();
+      }
+    });
 
     try {
       final reply = await _service.sendMessage(message: text, history: history);
@@ -393,6 +415,7 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
           _ChatMessage(user: false, text: _cleanAiText(reply)),
         );
       });
+      _scrollToBottom();
 
       if (_plan == 'FREE' && _freeUsed >= _freeLimit) {
         await Future<void>.delayed(const Duration(milliseconds: 500));
@@ -406,6 +429,7 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
         );
         _statusMessage = null;
       });
+      _scrollToBottom();
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -417,6 +441,7 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
         );
         _statusMessage = null;
       });
+      _scrollToBottom();
     } finally {
       if (mounted) {
         setState(() {
@@ -430,6 +455,7 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
   @override
   void dispose() {
     _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -530,6 +556,7 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
             ),
           Expanded(
             child: ListView.builder(
+              controller: _scrollController,
               padding: const EdgeInsets.all(16),
               itemCount: _messages.length,
               itemBuilder: (_, i) {
@@ -637,6 +664,7 @@ class _DocumentsPageState extends State<DocumentsPage> {
   List<Map<String, dynamic>> _documents = [];
   PlatformFile? _pending;
   int? _selectedIndex;
+  int? _openingIndex;
 
   @override
   void initState() {
@@ -685,15 +713,50 @@ class _DocumentsPageState extends State<DocumentsPage> {
   }
 
   Future<void> _openDocument(int index) async {
-    final path = _documents[index]['path']?.toString() ?? '';
+    if (_openingIndex != null) return;
+
+    final item = _documents[index];
+    final path = item['path']?.toString() ?? '';
+    final name = item['name']?.toString() ?? 'Documento';
+
     if (path.isEmpty || !await File(path).exists()) {
       _snack('Il file non è più disponibile sul dispositivo.');
       return;
     }
 
-    final result = await OpenFilex.open(path);
-    if (result.type != ResultType.done && mounted) {
-      _snack('Non riesco ad aprire il file con le app disponibili.');
+    setState(() {
+      _selectedIndex = index;
+      _openingIndex = index;
+    });
+
+    try {
+      final ext = path.toLowerCase().split('.').last;
+
+      if (['jpg', 'jpeg', 'png', 'webp'].contains(ext)) {
+        if (!mounted) return;
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => _ImagePreviewPage(
+              filePath: path,
+              title: name,
+            ),
+          ),
+        );
+      } else {
+        final result = await OpenFilex.open(path);
+        if (result.type != ResultType.done && mounted) {
+          _snack('Non riesco ad aprire questo PDF con le app disponibili.');
+        }
+      }
+    } catch (_) {
+      if (mounted) {
+        _snack('Errore durante l’apertura del documento.');
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _openingIndex = null);
+      }
     }
   }
 
@@ -774,8 +837,7 @@ class _DocumentsPageState extends State<DocumentsPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: ListTile(
-                  onTap: () => _openDocument(i),
-                  onLongPress: () => setState(() => _selectedIndex = i),
+                  onTap: () => setState(() => _selectedIndex = i),
                   leading: Icon(
                     selected ? Icons.check_circle : Icons.folder_copy_outlined,
                     color: KingoMedicoApp.primary,
@@ -783,16 +845,22 @@ class _DocumentsPageState extends State<DocumentsPage> {
                   title: Text(item['name']?.toString() ?? 'Documento'),
                   subtitle: Text(
                     selected
-                        ? 'Selezionato • Tocca per aprire'
-                        : 'Tocca per aprire • Tieni premuto per selezionare',
+                        ? 'Selezionato • usa Apri per visualizzarlo'
+                        : 'Tocca per selezionare • usa Apri per visualizzarlo',
                   ),
                   trailing: Wrap(
                     spacing: 0,
                     children: [
                       IconButton(
                         tooltip: 'Apri',
-                        onPressed: () => _openDocument(i),
-                        icon: const Icon(Icons.open_in_new),
+                        onPressed: _openingIndex == null ? () => _openDocument(i) : null,
+                        icon: _openingIndex == i
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.open_in_new),
                       ),
                       IconButton(
                         tooltip: 'Elimina',
@@ -811,6 +879,46 @@ class _DocumentsPageState extends State<DocumentsPage> {
             label: const Text('Invia a KINGO per spiegazione'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+
+class _ImagePreviewPage extends StatelessWidget {
+  final String filePath;
+  final String title;
+
+  const _ImagePreviewPage({
+    required this.filePath,
+    required this.title,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: Text(title),
+        backgroundColor: Colors.black,
+        foregroundColor: Colors.white,
+      ),
+      body: Center(
+        child: InteractiveViewer(
+          minScale: 0.5,
+          maxScale: 5,
+          child: Image.file(
+            File(filePath),
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => const Padding(
+              padding: EdgeInsets.all(24),
+              child: Text(
+                'Impossibile visualizzare questa immagine.',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -1681,6 +1789,7 @@ class AccountPage extends StatelessWidget {
           ),
         ),
         body: const TabBarView(
+          physics: NeverScrollableScrollPhysics(),
           children: [
             _AccountForm(register: false),
             _AccountForm(register: true),
