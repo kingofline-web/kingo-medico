@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:http/http.dart' as http;
@@ -5,7 +6,7 @@ import 'package:http/http.dart' as http;
 class MedicalAiService {
   static const String _endpoint =
       'https://www.kingofline.it/wp-json/kingo-medico/v1/chat';
-  static const Duration _timeout = Duration(seconds: 60);
+  static const Duration _timeout = Duration(seconds: 25);
 
   Future<String> sendMessage({
     required String message,
@@ -47,7 +48,7 @@ class MedicalAiService {
           }
         }
         throw const MedicalAiException(
-          'KINGO non ha ricevuto una risposta valida dal server.',
+          'Il server ha risposto, ma KINGO non ha ricevuto un testo valido.',
         );
       }
 
@@ -58,11 +59,15 @@ class MedicalAiService {
       throw MedicalAiException(
         'Servizio KINGO temporaneamente non disponibile (${response.statusCode}).',
       );
+    } on TimeoutException {
+      throw const MedicalAiException(
+        'KINGO non ha ricevuto risposta dal server entro 25 secondi. Riprova.',
+      );
     } on MedicalAiException {
       rethrow;
-    } catch (_) {
-      throw const MedicalAiException(
-        'Impossibile collegarsi a KINGO in questo momento. Riprova.',
+    } catch (e) {
+      throw MedicalAiException(
+        'Impossibile collegarsi a KINGO in questo momento. Dettaglio: ${e.runtimeType}.',
       );
     }
   }
