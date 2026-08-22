@@ -1,10 +1,11 @@
-// KINGO MEDICO RC1.1E FIX CHAT DEFINITIVO
+// KINGO MEDICO RC1.2 MASTER GRAFICO APPROVATO
 import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -21,23 +22,88 @@ Future<void> main() async {
 class KingoMedicoApp extends StatelessWidget {
   const KingoMedicoApp({super.key});
 
-  static const primary = Color(0xFF0B6E99);
-  static const secondary = Color(0xFF1696A8);
-  static const soft = Color(0xFFEAF6F8);
-  static const text = Color(0xFF18313B);
+  static const navy = Color(0xFF0D2B45);
+  static const primary = Color(0xFF0E4D5A);
+  static const secondary = Color(0xFF00B4A6);
+  static const cyan = Color(0xFF6EF6F5);
+  static const soft = Color(0xFFF3F8FA);
+  static const surface = Colors.white;
+  static const text = Color(0xFF17313B);
 
   @override
   Widget build(BuildContext context) {
+    final scheme = ColorScheme.fromSeed(
+      seedColor: primary,
+      brightness: Brightness.light,
+      primary: primary,
+      secondary: secondary,
+      surface: surface,
+    );
+
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'KINGO Medico',
+      locale: const Locale('it', 'IT'),
+      supportedLocales: const [Locale('it', 'IT')],
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
       theme: ThemeData(
         useMaterial3: true,
-        scaffoldBackgroundColor: const Color(0xFFF6FAFB),
-        colorScheme: ColorScheme.fromSeed(seedColor: primary),
+        colorScheme: scheme,
+        scaffoldBackgroundColor: soft,
+        fontFamily: 'Roboto',
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFF6FAFB),
+          backgroundColor: soft,
+          foregroundColor: navy,
+          elevation: 0,
+          centerTitle: false,
           surfaceTintColor: Colors.transparent,
+          titleTextStyle: TextStyle(
+            color: navy,
+            fontSize: 23,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        cardTheme: CardThemeData(
+          color: Colors.white,
+          elevation: 0,
+          margin: EdgeInsets.zero,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.all(Radius.circular(22)),
+          ),
+        ),
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(18)),
+            borderSide: BorderSide(color: Color(0xFFD8E7EC)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(18)),
+            borderSide: BorderSide(color: Color(0xFFD8E7EC)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.all(Radius.circular(18)),
+            borderSide: BorderSide(color: secondary, width: 1.6),
+          ),
+        ),
+        filledButtonTheme: FilledButtonThemeData(
+          style: FilledButton.styleFrom(
+            backgroundColor: primary,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(18),
+            ),
+          ),
+        ),
+        floatingActionButtonTheme: const FloatingActionButtonThemeData(
+          backgroundColor: secondary,
+          foregroundColor: Colors.white,
         ),
       ),
       home: const HomePage(),
@@ -54,7 +120,6 @@ class HomePage extends StatelessWidget {
 
   Future<void> _activateTester(BuildContext context) async {
     final storage = AppStorageService();
-
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -76,132 +141,293 @@ class HomePage extends StatelessWidget {
     );
 
     if (confirmed != true || !context.mounted) return;
-
     await storage.setSelectedPlan('TESTER');
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt('kingo_medico_free_answers_used', 0);
-
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('TESTER KOL attivo: risposte illimitate.'),
-      ),
+      const SnackBar(content: Text('TESTER KOL attivo: risposte illimitate.')),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: GestureDetector(
-          onLongPress: () => _activateTester(context),
-          child: const Column(
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(18, 12, 18, 28),
+          children: [
+            Row(
+              children: [
+                GestureDetector(
+                  onLongPress: () => _activateTester(context),
+                  child: Image.asset(
+                    'assets/branding/kingo_medico_logo.png',
+                    width: 205,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+                const Spacer(),
+                IconButton.filledTonal(
+                  tooltip: 'Account',
+                  onPressed: () => _open(context, const AccountPage()),
+                  icon: const Icon(Icons.person_outline_rounded),
+                ),
+              ],
+            ),
+            const SizedBox(height: 18),
+            Container(
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [KingoMedicoApp.navy, KingoMedicoApp.primary],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(30),
+                boxShadow: const [
+                  BoxShadow(
+                    color: Color(0x1F0D2B45),
+                    blurRadius: 24,
+                    offset: Offset(0, 10),
+                  ),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(22, 22, 22, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Ciao 👋',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 27,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 5),
+                        const Text(
+                          'Come posso aiutarti oggi?',
+                          style: TextStyle(
+                            color: Color(0xFFD8F7F5),
+                            fontSize: 15.5,
+                          ),
+                        ),
+                        const SizedBox(height: 18),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            onPressed: () =>
+                                _open(context, const MedicalChatPage()),
+                            style: FilledButton.styleFrom(
+                              backgroundColor: Colors.white,
+                              foregroundColor: KingoMedicoApp.navy,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 18,
+                                vertical: 16,
+                              ),
+                            ),
+                            icon: const Icon(Icons.chat_bubble_outline_rounded),
+                            label: const Text(
+                              'Parla con KINGO',
+                              style: TextStyle(fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Stack(
+                    children: [
+                      Image.asset(
+                        'assets/branding/kingo_doctor.png',
+                        width: double.infinity,
+                        height: 175,
+                        fit: BoxFit.cover,
+                      ),
+                      Positioned(
+                        left: 18,
+                        bottom: 16,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 9,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xD90D2B45),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: const Text(
+                            'KINGO Medico AI\nSempre con te',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              height: 1.25,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Tutto quello di cui hai bisogno',
+              style: TextStyle(
+                color: KingoMedicoApp.navy,
+                fontSize: 21,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 14),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 1.08,
+              children: [
+                _ServiceCard(
+                  icon: Icons.calendar_month_rounded,
+                  title: 'Agenda Salute',
+                  subtitle: 'Appuntamenti e visite',
+                  onTap: () => _open(context, const AgendaPage()),
+                ),
+                _ServiceCard(
+                  icon: Icons.description_outlined,
+                  title: 'Esami e Referti',
+                  subtitle: 'I tuoi documenti',
+                  onTap: () => _open(context, const DocumentsPage()),
+                ),
+                _ServiceCard(
+                  icon: Icons.medication_outlined,
+                  title: 'Promemoria Farmaci',
+                  subtitle: 'Terapie sotto controllo',
+                  onTap: () => _open(context, const MedicinesPage()),
+                ),
+                _ServiceCard(
+                  icon: Icons.phone_in_talk_rounded,
+                  title: 'Numeri Utili',
+                  subtitle: 'Contatti rapidi',
+                  onTap: () => _open(context, const UsefulNumbersPage()),
+                ),
+              ],
+            ),
+            const SizedBox(height: 14),
+            _ActionTile(
+              icon: Icons.workspace_premium_outlined,
+              title: 'Piani FREE, PLUS e PRO',
+              subtitle: 'Scegli il piano più adatto',
+              onTap: () => _open(context, const PlansPage()),
+            ),
+            const SizedBox(height: 18),
+            Container(
+              height: 180,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(28),
+                image: const DecorationImage(
+                  image: AssetImage('assets/branding/care_reassuring.png'),
+                  fit: BoxFit.cover,
+                  alignment: Alignment.center,
+                ),
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: Container(
+                alignment: Alignment.bottomLeft,
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Color(0x00102E46), Color(0xE6102E46)],
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                  ),
+                ),
+                child: const Text(
+                  'Tecnologia che si prende cura di te.',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 21,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            const _SafetyCard(),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ServiceCard extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+
+  const _ServiceCard({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(24),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(24),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('KINGO Medico', style: TextStyle(fontWeight: FontWeight.w900)),
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [
+                      KingoMedicoApp.secondary,
+                      KingoMedicoApp.primary,
+                    ],
+                  ),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(icon, color: Colors.white),
+              ),
+              const Spacer(),
               Text(
-                'Il tuo assistente sanitario AI in italiano',
-                style: TextStyle(fontSize: 11.5, color: Color(0xFF607985)),
+                title,
+                style: const TextStyle(
+                  color: KingoMedicoApp.navy,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 15,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                style: const TextStyle(
+                  color: Color(0xFF6B7F87),
+                  fontSize: 12.5,
+                ),
               ),
             ],
           ),
         ),
-        actions: [
-          TextButton.icon(
-            onPressed: () => _open(context, const AccountPage()),
-            icon: const Icon(Icons.person_outline),
-            label: const Text('Accedi'),
-          ),
-        ],
-      ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 8, 18, 30),
-        children: [
-          Container(
-            padding: const EdgeInsets.all(22),
-            decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [KingoMedicoApp.primary, KingoMedicoApp.secondary],
-              ),
-              borderRadius: BorderRadius.circular(28),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Icon(Icons.health_and_safety_rounded, color: Colors.white, size: 44),
-                const SizedBox(height: 14),
-                const Text(
-                  'La tua salute, più semplice da capire.',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 26,
-                    fontWeight: FontWeight.w900,
-                    height: 1.08,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'Parla con KINGO, organizza visite e farmaci e conserva i tuoi referti.',
-                  style: TextStyle(color: Colors.white, height: 1.4),
-                ),
-                const SizedBox(height: 18),
-                FilledButton.icon(
-                  onPressed: () => _open(context, const MedicalChatPage()),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: KingoMedicoApp.primary,
-                  ),
-                  icon: const Icon(Icons.chat_bubble_outline),
-                  label: const Text('Parla con KINGO'),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 22),
-          const Text(
-            'Come posso aiutarti oggi?',
-            style: TextStyle(fontSize: 21, fontWeight: FontWeight.w900),
-          ),
-          const SizedBox(height: 12),
-          _ActionTile(
-            icon: Icons.chat_bubble_outline,
-            title: 'Parla con KINGO',
-            subtitle: 'Sintomi, dubbi e orientamento',
-            onTap: () => _open(context, const MedicalChatPage()),
-          ),
-          _ActionTile(
-            icon: Icons.description_outlined,
-            title: 'Esami e referti',
-            subtitle: 'Salva PDF, foto e documenti',
-            onTap: () => _open(context, const DocumentsPage()),
-          ),
-          _ActionTile(
-            icon: Icons.calendar_month_outlined,
-            title: 'Agenda Salute',
-            subtitle: 'Visite con avviso il giorno prima',
-            onTap: () => _open(context, const AgendaPage()),
-          ),
-          _ActionTile(
-            icon: Icons.medication_outlined,
-            title: 'Promemoria farmaci',
-            subtitle: 'Avviso giornaliero con suono dedicato',
-            onTap: () => _open(context, const MedicinesPage()),
-          ),
-          _ActionTile(
-            icon: Icons.phone_in_talk_outlined,
-            title: 'Numeri utili',
-            subtitle: 'Tocca un numero per aprire il telefono',
-            onTap: () => _open(context, const UsefulNumbersPage()),
-          ),
-          _ActionTile(
-            icon: Icons.workspace_premium_outlined,
-            title: 'Piani FREE, PLUS e PRO',
-            subtitle: 'Scegli il piano più adatto',
-            onTap: () => _open(context, const PlansPage()),
-          ),
-          const SizedBox(height: 16),
-          const _SafetyCard(),
-        ],
       ),
     );
   }
@@ -223,21 +449,26 @@ class _ActionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Card(
-      margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
         leading: Container(
           width: 46,
           height: 46,
           decoration: BoxDecoration(
-            color: KingoMedicoApp.soft,
+            color: const Color(0xFFE7F7F6),
             borderRadius: BorderRadius.circular(14),
           ),
           child: Icon(icon, color: KingoMedicoApp.primary),
         ),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+        title: Text(
+          title,
+          style: const TextStyle(
+            color: KingoMedicoApp.navy,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
         subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right),
+        trailing: const Icon(Icons.arrow_forward_ios_rounded, size: 17),
         onTap: onTap,
       ),
     );
@@ -472,7 +703,20 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
     final tester = _plan == 'TESTER';
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Parla con KINGO')),
+      appBar: AppBar(
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/branding/app_icon.png',
+              width: 34,
+              height: 34,
+              fit: BoxFit.cover,
+            ),
+            const SizedBox(width: 10),
+            const Text('Parla con KINGO'),
+          ],
+        ),
+      ),
       body: Column(
         children: [
           if (tester)
@@ -481,7 +725,7 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
               margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: const Color(0xFFE8F7EE),
+                color: const Color(0xFFE3F7F2),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: const Text(
@@ -495,7 +739,7 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
               margin: const EdgeInsets.fromLTRB(16, 8, 16, 4),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: KingoMedicoApp.soft,
+                color: const Color(0xFFE8F5F8),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Text(
@@ -575,8 +819,25 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
                     margin: const EdgeInsets.only(bottom: 10),
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: m.user ? KingoMedicoApp.primary : Colors.white,
-                      borderRadius: BorderRadius.circular(18),
+                      color: m.user
+                          ? KingoMedicoApp.primary
+                          : Colors.white,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(22),
+                        topRight: const Radius.circular(22),
+                        bottomLeft: Radius.circular(m.user ? 22 : 6),
+                        bottomRight: Radius.circular(m.user ? 6 : 22),
+                      ),
+                      border: m.user
+                          ? null
+                          : Border.all(color: const Color(0xFFE2EDF0)),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x0D0D2B45),
+                          blurRadius: 10,
+                          offset: Offset(0, 3),
+                        ),
+                      ],
                     ),
                     child: Text(
                       m.text,
@@ -626,12 +887,22 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
                         hintText: free && _freeUsed >= _freeLimit
                             ? 'Scegli PLUS o PRO per continuare'
                             : 'Scrivi cosa vuoi capire...',
-                        border: const OutlineInputBorder(),
+                        border: InputBorder.none,
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  IconButton.filled(
+                  Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [KingoMedicoApp.secondary, KingoMedicoApp.primary],
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: IconButton(
+                    color: Colors.white,
                     onPressed: _sending
                         ? null
                         : (free && _freeUsed >= _freeLimit)
@@ -640,9 +911,10 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
                     icon: Icon(
                       free && _freeUsed >= _freeLimit
                           ? Icons.workspace_premium
-                          : Icons.send,
+                          : Icons.send_rounded,
                     ),
                   ),
+                ),
                 ],
               ),
             ),
@@ -1875,14 +2147,33 @@ class _SafetyCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: const Color(0xFFFFF8E7),
-        borderRadius: BorderRadius.circular(18),
+        gradient: const LinearGradient(
+          colors: [Color(0xFFEAF8FA), Color(0xFFDDF6F3)],
+        ),
+        borderRadius: BorderRadius.circular(22),
       ),
-      child: const Text(
-        'KINGO Medico fornisce informazioni e orientamento sanitario. Non sostituisce il medico, non effettua diagnosi definitive e non prescrive terapie. In caso di emergenza contatta i servizi sanitari.',
-        style: TextStyle(height: 1.4),
+      child: const Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            Icons.verified_user_outlined,
+            color: KingoMedicoApp.secondary,
+            size: 28,
+          ),
+          SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Sicuro. Affidabile. Umano.\nKINGO Medico offre informazioni e orientamento sanitario e non sostituisce il medico. In caso di emergenza contatta i servizi sanitari.',
+              style: TextStyle(
+                color: KingoMedicoApp.navy,
+                height: 1.45,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
