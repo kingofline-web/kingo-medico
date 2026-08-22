@@ -1,7 +1,9 @@
-// KINGO MEDICO RC1.1B TESTER FIX + UPGRADE AUTOMATICO
+// KINGO MEDICO RC1.1C CHAT DIAGNOSTICA + DOCUMENTI + CONTATTI
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -266,6 +268,7 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
   ].toList();
 
   bool _sending = false;
+  String? _statusMessage;
   int _freeUsed = 0;
   String _plan = 'FREE';
 
@@ -371,6 +374,7 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
       _messages.add(_ChatMessage(user: true, text: text));
       _controller.clear();
       _sending = true;
+      _statusMessage = 'KINGO sta rispondendo…';
     });
 
     try {
@@ -400,9 +404,26 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
         _messages.add(
           _ChatMessage(user: false, text: _cleanAiText(e.message)),
         );
+        _statusMessage = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _messages.add(
+          const _ChatMessage(
+            user: false,
+            text: 'Errore imprevisto nella comunicazione con KINGO. Riprova.',
+          ),
+        );
+        _statusMessage = null;
       });
     } finally {
-      if (mounted) setState(() => _sending = false);
+      if (mounted) {
+        setState(() {
+          _sending = false;
+          _statusMessage = null;
+        });
+      }
     }
   }
 
@@ -535,7 +556,26 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
               },
             ),
           ),
-          if (_sending) const LinearProgressIndicator(),
+          if (_sending)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(18, 4, 18, 6),
+              child: Row(
+                children: [
+                  const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      _statusMessage ?? 'KINGO sta rispondendo…',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           SafeArea(
             top: false,
             child: Padding(
@@ -596,6 +636,7 @@ class _DocumentsPageState extends State<DocumentsPage> {
   final _storage = AppStorageService();
   List<Map<String, dynamic>> _documents = [];
   PlatformFile? _pending;
+  int? _selectedIndex;
 
   @override
   void initState() {
@@ -633,10 +674,26 @@ class _DocumentsPageState extends State<DocumentsPage> {
       });
       await _storage.saveDocuments(_documents);
       if (!mounted) return;
-      setState(() => _pending = null);
+      setState(() {
+        _pending = null;
+        _selectedIndex = _documents.length - 1;
+      });
       _snack('Documento salvato nel tuo archivio.');
     } catch (_) {
       _snack('Non è stato possibile salvare il documento.');
+    }
+  }
+
+  Future<void> _openDocument(int index) async {
+    final path = _documents[index]['path']?.toString() ?? '';
+    if (path.isEmpty || !await File(path).exists()) {
+      _snack('Il file non è più disponibile sul dispositivo.');
+      return;
+    }
+
+    final result = await OpenFilex.open(path);
+    if (result.type != ResultType.done && mounted) {
+      _snack('Non riesco ad aprire il file con le app disponibili.');
     }
   }
 
@@ -644,12 +701,26 @@ class _DocumentsPageState extends State<DocumentsPage> {
     final item = _documents[index];
     await _storage.deleteArchivedFile(item['path']?.toString() ?? '');
     _documents.removeAt(index);
+    if (_selectedIndex == index) {
+      _selectedIndex = null;
+    } else if (_selectedIndex != null && _selectedIndex! > index) {
+      _selectedIndex = _selectedIndex! - 1;
+    }
     await _storage.saveDocuments(_documents);
     if (mounted) setState(() {});
   }
 
   void _snack(String text) {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
+  }
+
+  void _sendSelectedToKingo() {
+    if (_selectedIndex == null) {
+      _snack('Seleziona prima un documento.');
+      return;
+    }
+    final item = _documents[_selectedIndex!];
+    _snack('Documento "${item['name']}" selezionato. Il collegamento all’analisi KINGO verrà attivato nel modulo documenti.');
   }
 
   @override
@@ -693,24 +764,49 @@ class _DocumentsPageState extends State<DocumentsPage> {
           else
             ...List.generate(_documents.length, (i) {
               final item = _documents[i];
+              final selected = _selectedIndex == i;
               return Card(
+                shape: RoundedRectangleBorder(
+                  side: BorderSide(
+                    color: selected ? KingoMedicoApp.primary : Colors.transparent,
+                    width: 1.5,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
                 child: ListTile(
-                  leading: const Icon(
-                    Icons.folder_copy_outlined,
+                  onTap: () => _openDocument(i),
+                  onLongPress: () => setState(() => _selectedIndex = i),
+                  leading: Icon(
+                    selected ? Icons.check_circle : Icons.folder_copy_outlined,
                     color: KingoMedicoApp.primary,
                   ),
                   title: Text(item['name']?.toString() ?? 'Documento'),
-                  subtitle: const Text('Salvato sul dispositivo'),
-                  trailing: IconButton(
-                    onPressed: () => _delete(i),
-                    icon: const Icon(Icons.delete_outline),
+                  subtitle: Text(
+                    selected
+                        ? 'Selezionato • Tocca per aprire'
+                        : 'Tocca per aprire • Tieni premuto per selezionare',
+                  ),
+                  trailing: Wrap(
+                    spacing: 0,
+                    children: [
+                      IconButton(
+                        tooltip: 'Apri',
+                        onPressed: () => _openDocument(i),
+                        icon: const Icon(Icons.open_in_new),
+                      ),
+                      IconButton(
+                        tooltip: 'Elimina',
+                        onPressed: () => _delete(i),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ],
                   ),
                 ),
               );
             }),
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            onPressed: _pending == null ? null : () => _snack('Documento pronto.'),
+            onPressed: _selectedIndex == null ? null : _sendSelectedToKingo,
             icon: const Icon(Icons.auto_awesome),
             label: const Text('Invia a KINGO per spiegazione'),
           ),
@@ -1153,18 +1249,133 @@ class _MedicineDraft {
   const _MedicineDraft(this.name, this.hour, this.minute);
 }
 
-class UsefulNumbersPage extends StatelessWidget {
+class UsefulNumbersPage extends StatefulWidget {
   const UsefulNumbersPage({super.key});
 
-  Future<void> _call(BuildContext context, String number) async {
-    final uri = Uri(scheme: 'tel', path: number.replaceAll(' ', ''));
-    if (!await launchUrl(uri)) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Impossibile aprire il telefono.')),
-        );
+  @override
+  State<UsefulNumbersPage> createState() => _UsefulNumbersPageState();
+}
+
+class _UsefulNumbersPageState extends State<UsefulNumbersPage> {
+  static const _contactsKey = 'kingo_medico_personal_health_contacts';
+  List<Map<String, String>> _contacts = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadContacts();
+  }
+
+  Future<void> _loadContacts() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_contactsKey);
+    if (raw == null || raw.isEmpty) return;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is List) {
+        _contacts = decoded
+            .whereType<Map>()
+            .map((e) => {
+                  'name': e['name']?.toString() ?? '',
+                  'role': e['role']?.toString() ?? '',
+                  'phone': e['phone']?.toString() ?? '',
+                  'note': e['note']?.toString() ?? '',
+                })
+            .toList();
       }
+    } catch (_) {}
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _saveContacts() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_contactsKey, jsonEncode(_contacts));
+  }
+
+  Future<void> _call(String number) async {
+    final uri = Uri(scheme: 'tel', path: number.replaceAll(' ', ''));
+    if (!await launchUrl(uri) && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Impossibile aprire il telefono.')),
+      );
     }
+  }
+
+  Future<void> _editContact({int? index}) async {
+    final existing = index == null ? null : _contacts[index];
+    final name = TextEditingController(text: existing?['name'] ?? '');
+    final role = TextEditingController(text: existing?['role'] ?? '');
+    final phone = TextEditingController(text: existing?['phone'] ?? '');
+    final note = TextEditingController(text: existing?['note'] ?? '');
+
+    final result = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(index == null ? 'Aggiungi contatto sanitario' : 'Modifica contatto'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(controller: name, decoration: const InputDecoration(labelText: 'Nome')),
+              TextField(
+                controller: role,
+                decoration: const InputDecoration(
+                  labelText: 'Ruolo / specialità',
+                  hintText: 'Es. Medico di base, Cardiologo',
+                ),
+              ),
+              TextField(
+                controller: phone,
+                keyboardType: TextInputType.phone,
+                decoration: const InputDecoration(labelText: 'Telefono'),
+              ),
+              TextField(
+                controller: note,
+                decoration: const InputDecoration(labelText: 'Nota (facoltativa)'),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('ANNULLA'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (name.text.trim().isEmpty || phone.text.trim().isEmpty) return;
+              Navigator.pop(dialogContext, {
+                'name': name.text.trim(),
+                'role': role.text.trim(),
+                'phone': phone.text.trim(),
+                'note': note.text.trim(),
+              });
+            },
+            child: const Text('SALVA'),
+          ),
+        ],
+      ),
+    );
+
+    name.dispose();
+    role.dispose();
+    phone.dispose();
+    note.dispose();
+
+    if (result == null) return;
+    if (index == null) {
+      _contacts.add(result);
+    } else {
+      _contacts[index] = result;
+    }
+    await _saveContacts();
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _deleteContact(int index) async {
+    _contacts.removeAt(index);
+    await _saveContacts();
+    if (mounted) setState(() {});
   }
 
   @override
@@ -1180,23 +1391,80 @@ class UsefulNumbersPage extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(title: const Text('Numeri utili')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _editContact(),
+        icon: const Icon(Icons.person_add_alt_1),
+        label: const Text('Aggiungi contatto'),
+      ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
         children: [
+          const Text(
+            'Numeri nazionali',
+            style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 8),
           ...numbers.map(
             (item) => Card(
               child: ListTile(
-                leading: const Icon(
-                  Icons.phone_in_talk,
-                  color: KingoMedicoApp.primary,
-                ),
+                leading: const Icon(Icons.phone_in_talk, color: KingoMedicoApp.primary),
                 title: Text(item.$1),
                 subtitle: Text(item.$2),
                 trailing: const Icon(Icons.phone),
-                onTap: () => _call(context, item.$2),
+                onTap: () => _call(item.$2),
               ),
             ),
           ),
+          const SizedBox(height: 20),
+          const Text(
+            'I miei contatti sanitari',
+            style: TextStyle(fontSize: 19, fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 8),
+          if (_contacts.isEmpty)
+            const Padding(
+              padding: EdgeInsets.only(bottom: 12),
+              child: Text(
+                'Aggiungi il tuo medico, uno specialista, una farmacia o un altro contatto di fiducia.',
+              ),
+            )
+          else
+            ...List.generate(_contacts.length, (i) {
+              final c = _contacts[i];
+              final role = c['role']?.trim() ?? '';
+              final note = c['note']?.trim() ?? '';
+              final subtitleParts = <String>[
+                if (role.isNotEmpty) role,
+                c['phone'] ?? '',
+                if (note.isNotEmpty) note,
+              ];
+              return Card(
+                child: ListTile(
+                  leading: const Icon(
+                    Icons.medical_services_outlined,
+                    color: KingoMedicoApp.primary,
+                  ),
+                  title: Text(c['name'] ?? 'Contatto'),
+                  subtitle: Text(subtitleParts.join(' • ')),
+                  onTap: () => _call(c['phone'] ?? ''),
+                  trailing: Wrap(
+                    spacing: 0,
+                    children: [
+                      IconButton(
+                        tooltip: 'Modifica',
+                        onPressed: () => _editContact(index: i),
+                        icon: const Icon(Icons.edit_outlined),
+                      ),
+                      IconButton(
+                        tooltip: 'Elimina',
+                        onPressed: () => _deleteContact(i),
+                        icon: const Icon(Icons.delete_outline),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }),
           const SizedBox(height: 8),
           const Text(
             'I numeri territoriali verranno inseriti dopo verifica ufficiale per area geografica.',
