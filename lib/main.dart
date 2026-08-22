@@ -1,4 +1,4 @@
-// KINGO MEDICO RC1.1D STABILITA CHAT + DOCUMENTI
+// KINGO MEDICO RC1.1E FIX CHAT DEFINITIVO
 import 'dart:convert';
 import 'dart:io';
 
@@ -295,7 +295,7 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
     return text
         .replaceAll('**', '')
         .replaceAll('__', '')
-        .replaceAll(RegExp(r'(?m)^\s*[-•]\s+'), '• ');
+        .replaceAll(RegExp(r'^\s*[-•]\s+', multiLine: true), '• ');
   }
 
   void _scrollToBottom() {
@@ -402,20 +402,27 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
     try {
       final reply = await _service.sendMessage(message: text, history: history);
 
-      if (_plan == 'FREE') {
-        final prefs = await SharedPreferences.getInstance();
-        final newCount = (_freeUsed + 1).clamp(0, _freeLimit);
-        await prefs.setInt(_freeCountKey, newCount);
-        _freeUsed = newCount;
-      }
+      final cleanedReply = _cleanAiText(reply);
 
       if (!mounted) return;
       setState(() {
         _messages.add(
-          _ChatMessage(user: false, text: _cleanAiText(reply)),
+          _ChatMessage(user: false, text: cleanedReply),
         );
       });
       _scrollToBottom();
+
+      // Scala il FREE solo dopo una risposta AI valida realmente mostrata.
+      if (_plan == 'FREE') {
+        final prefs = await SharedPreferences.getInstance();
+        final newCount = (_freeUsed + 1).clamp(0, _freeLimit);
+        await prefs.setInt(_freeCountKey, newCount);
+        if (mounted) {
+          setState(() => _freeUsed = newCount);
+        } else {
+          _freeUsed = newCount;
+        }
+      }
 
       if (_plan == 'FREE' && _freeUsed >= _freeLimit) {
         await Future<void>.delayed(const Duration(milliseconds: 500));
@@ -430,13 +437,13 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
         _statusMessage = null;
       });
       _scrollToBottom();
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _messages.add(
-          const _ChatMessage(
+          _ChatMessage(
             user: false,
-            text: 'Errore imprevisto nella comunicazione con KINGO. Riprova.',
+            text: 'Errore app KINGO: ${e.runtimeType}. Riprova.',
           ),
         );
         _statusMessage = null;
