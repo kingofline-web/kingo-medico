@@ -1,4 +1,4 @@
-// KINGO MEDICO RC1.1 TESTER + LIMITATORE
+// KINGO MEDICO RC1.1B TESTER FIX + UPGRADE AUTOMATICO
 import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
@@ -51,31 +51,14 @@ class HomePage extends StatelessWidget {
   }
 
   Future<void> _activateTester(BuildContext context) async {
-    final controller = TextEditingController();
     final storage = AppStorageService();
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Modalità TESTER KOL'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Funzione riservata ai test interni. Inserisci il codice tester.',
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              obscureText: true,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Codice tester',
-                border: OutlineInputBorder(),
-              ),
-            ),
-          ],
+        content: const Text(
+          'Attivare la modalità di collaudo interna con risposte illimitate?',
         ),
         actions: [
           TextButton(
@@ -83,26 +66,14 @@ class HomePage extends StatelessWidget {
             child: const Text('ANNULLA'),
           ),
           FilledButton(
-            onPressed: () {
-              final ok = controller.text.trim() == 'KOL-TEST-2026';
-              Navigator.pop(dialogContext, ok);
-            },
-            child: const Text('ATTIVA'),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('ATTIVA TESTER'),
           ),
         ],
       ),
     );
 
-    controller.dispose();
-
-    if (confirmed != true || !context.mounted) {
-      if (confirmed == false && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Codice tester non valido.')),
-        );
-      }
-      return;
-    }
+    if (confirmed != true || !context.mounted) return;
 
     await storage.setSelectedPlan('TESTER');
     final prefs = await SharedPreferences.getInstance();
@@ -111,7 +82,7 @@ class HomePage extends StatelessWidget {
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('Modalità TESTER KOL attiva: chat illimitata.'),
+        content: Text('TESTER KOL attivo: risposte illimitate.'),
       ),
     );
   }
@@ -478,6 +449,62 @@ class _MedicalChatPageState extends State<MedicalChatPage> {
                     ? 'Piano FREE • $_remaining ${_remaining == 1 ? 'risposta rimasta' : 'risposte rimaste'}'
                     : 'Piano FREE • limite gratuito raggiunto',
                 style: const TextStyle(fontWeight: FontWeight.w800),
+              ),
+            ),
+          if (free && _remaining == 0)
+            Container(
+              width: double.infinity,
+              margin: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(color: KingoMedicoApp.primary, width: 1.5),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Hai terminato le 2 risposte gratuite',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: KingoMedicoApp.text,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    'Continua con KINGO Medico scegliendo PLUS o PRO.',
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: FilledButton(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const PlansPage()),
+                            );
+                          },
+                          child: const Text('PLUS'),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: FilledButton.tonal(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const PlansPage()),
+                            );
+                          },
+                          child: const Text('PRO'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
               ),
             ),
           Expanded(
