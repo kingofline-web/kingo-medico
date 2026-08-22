@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 class MedicalAiService {
   static const String _endpoint =
       'https://www.kingofline.it/wp-json/kingo-medico/v1/chat';
-  static const Duration _timeout = Duration(seconds: 25);
+  static const Duration _timeout = Duration(seconds: 60);
 
   Future<String> sendMessage({
     required String message,
@@ -61,7 +61,7 @@ class MedicalAiService {
       );
     } on TimeoutException {
       throw const MedicalAiException(
-        'KINGO non ha ricevuto risposta dal server entro 25 secondi. Riprova.',
+        'KINGO sta impiegando più del previsto. Nessuna risposta ricevuta entro 60 secondi: riprova.',
       );
     } on MedicalAiException {
       rethrow;
